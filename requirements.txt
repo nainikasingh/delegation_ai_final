@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+anthropic
+pymongo
+python-dotenv
+boto3
+botocore
+python-multipart
+bcrypt
+passlib[bcrypt]
+starlette
+itsdangerous
