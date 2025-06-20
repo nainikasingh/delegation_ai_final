@@ -7,6 +7,10 @@ load_dotenv()
 
 anthropic = Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 
+def is_general_prompt(prompt: str) -> bool:
+    general_keywords = ["hello", "hi", "how are you", "good morning", "good evening", "hey"]
+    return any(word in prompt.lower() for word in general_keywords)
+
 def format_tasks_for_prompt(tasks):
     def format_date(d): return d.strftime('%Y-%m-%d') if isinstance(d, datetime) else str(d)
 
@@ -24,6 +28,9 @@ def format_tasks_for_prompt(tasks):
     return "\n".join(task_lines)
 
 def query_claude_with_tasks(prompt, tasks, role):
+    if is_general_prompt(prompt):
+        return "Hi there! 👋 I'm your Delegation AI assistant. I can help you track tasks, deadlines, and team performance. Just ask me a question!"
+
     input_text = f"""You are a delegation AI assistant. Based on the user's role and the task data, answer the prompt.
 
 USER ROLE: {role}
@@ -45,4 +52,4 @@ Answer accurately and clearly. If the data is not enough, explain what’s missi
         )
         return response.content[0].text
     except Exception as e:
-        return f"⚠️ Claude could not process your request: {str(e)}"
+        return f"⚠️ Delegation AI could not process your request: {str(e)}"
