@@ -27,19 +27,32 @@ def format_tasks_for_prompt(tasks):
 
     return "\n".join(task_lines)
 
-def query_claude_with_tasks(prompt, tasks, role):
+def query_claude_with_tasks(prompt: str, tasks: list, role: str) -> str:
     if is_general_prompt(prompt):
         return "Hi there! 👋 I'm your Delegation AI assistant. I can help you track tasks, deadlines, and team performance. Just ask me a question!"
 
-    input_text = f"""You are a delegation AI assistant. Based on the user's role and the task data, answer the prompt.
+    total_score = sum(
+        t.get("taskScore", 0)
+        for t in tasks
+        if isinstance(t.get("taskScore"), (int, float))
+    )
 
-USER ROLE: {role}
-PROMPT: {prompt}
+    # Shortcut bypass Claude if the user is only asking about total score
+    if "total score" in prompt.lower() or "overall performance" in prompt.lower():
+        return f"Your total score is {total_score}. You have handled {len(tasks)} tasks based on the available data."
 
-TASK DATA:
-{format_tasks_for_prompt(tasks)}
+    input_text = f"""
+        You are a Delegation AI Assistant. Based on the USER ROLE and the TASK DATA provided, answer the user's question directly, accurately, and concisely. Use only the information available in the task data. Do NOT ask for more data or suggest improvements unless explicitly asked.
 
-Answer accurately and clearly. If the data is not enough, explain what’s missing."""
+        USER ROLE: {role}
+        USER TOTAL SCORE: {total_score}
+        PROMPT: {prompt}
+
+        TASK DATA:
+        {format_tasks_for_prompt(tasks)}
+
+        Answer only what is asked, based on the task data above. Don't speculate or add recommendations unless prompted.
+    """
 
     try:
         response = anthropic.messages.create(
@@ -52,4 +65,4 @@ Answer accurately and clearly. If the data is not enough, explain what’s missi
         )
         return response.content[0].text
     except Exception as e:
-        return f"⚠️ Delegation AI could not process your request: {str(e)}"
+        return f"⚠️ Delegation AI Agent could not process your request: {str(e)}"
