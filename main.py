@@ -76,6 +76,10 @@ class QueryRequest(BaseModel):
     user_id: str 
     prompt: str
 
+class UserScoreRequest(BaseModel):
+    user_id: str
+
+# Main endpoint to ask the delegation ai agent
 @app.post("/ask")
 def ask_agent(request: QueryRequest):
     try:
@@ -86,20 +90,22 @@ def ask_agent(request: QueryRequest):
         role = user.get("role", "delegatee").capitalize()
         all_tasks = get_all_tasks()
 
-        user_level = get_role_hierarchy(role)
-
-        if user_level == 1:  # Delegatee
+        if role.lower() == "delegatee":
             filtered_tasks = [
                 t for t in all_tasks 
                 if request.user_id in [str(uid) for uid in t.get("delegateeName", [])]
             ]
-        elif user_level == 2:  # Delegator
+        elif role.lower() == "delegator":
             filtered_tasks = [
                 t for t in all_tasks 
                 if str(t.get("delegatorName")) == request.user_id
             ]
-        else:  # Boss (or default fallback)
-            filtered_tasks = all_tasks
+        else:  # Boss
+            filtered_tasks = [
+                t for t in all_tasks
+                if request.user_id in [str(uid) for uid in t.get("delegateeName", [])]
+                or str(t.get("delegatorName")) == request.user_id
+            ]
 
         if not filtered_tasks:
             return {"answer": "No relevant data found for your role or prompt."}
@@ -109,6 +115,49 @@ def ask_agent(request: QueryRequest):
 
     except Exception as e:
         return {"answer": f"Something went wrong while processing your request. {str(e)}"}
+
+
+# Endpoint to user details and total score
+@app.post("/user-score")
+def get_user_score(request: UserScoreRequest):
+    user = get_user_by_id(request.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    name = user.get("name", "Unknown")
+    role = user.get("role", "Unknown").capitalize()
+
+    all_tasks = get_all_tasks()
+
+    if role.lower() == "delegatee":
+        user_tasks = [
+            task for task in all_tasks
+            if request.user_id in [str(uid) for uid in task.get("delegateeName", [])]
+        ]
+    elif role.lower() == "delegator":
+        user_tasks = [
+            task for task in all_tasks
+            if str(task.get("delegatorName")) == request.user_id
+        ]
+    else:  # Boss
+        user_tasks = [
+            task for task in all_tasks
+            if request.user_id in [str(uid) for uid in task.get("delegateeName", [])]
+            or str(task.get("delegatorName")) == request.user_id
+        ]
+
+    total_score = sum(
+        task.get("taskScore", 0)
+        for task in user_tasks
+        if isinstance(task.get("taskScore"), (int, float))
+    )
+
+    return {
+        "user_id": request.user_id,
+        "name": name,
+        "role": role,
+        "total_score": total_score
+    }
 
 # Public Health Check Endpoint
 @app.get("/health", tags=["Health"])
